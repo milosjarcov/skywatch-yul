@@ -35,7 +35,7 @@ MONTREAL_BBOX = {
 
 log = logging.getLogger("uvicorn.error")
 
-app = FastAPI(title="ADS-B Tracker API")
+app = FastAPI(title="SkyWatch YUL API")
 
 # The Vite dev server proxies /api to us, but allow direct calls too.
 app.add_middleware(

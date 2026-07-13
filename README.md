@@ -1,7 +1,7 @@
-# ADS-B Tracker
+# SkyWatch YUL
 
-Live map of aircraft over Montreal, built on real-time ADS-B transponder data
-from the [OpenSky Network](https://opensky-network.org/).
+Live map of aircraft over Montreal (YUL), built on real-time ADS-B transponder
+data from the [OpenSky Network](https://opensky-network.org/).
 
 Planes appear as heading-rotated icons colored by altitude band (orange = low,
 yellow = mid, blue = cruise, gray = on the ground). Click a plane for its

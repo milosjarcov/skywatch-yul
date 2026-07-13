@@ -110,7 +110,7 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>ADS-B Tracker <span className="sub">Montreal</span></h1>
+        <h1>SkyWatch <span className="sub">YUL</span></h1>
         <div className="controls">
           <input
             type="text"
