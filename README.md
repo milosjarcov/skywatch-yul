@@ -3,10 +3,18 @@
 Live map of aircraft over Montreal (YUL), built on real-time ADS-B transponder
 data from the [OpenSky Network](https://opensky-network.org/).
 
-Planes appear as heading-rotated icons colored by altitude band (orange = low,
-yellow = mid, blue = cruise, gray = on the ground). Click a plane for its
-callsign, altitude, speed, and climb rate. Filter by callsign, minimum
-altitude, or ground traffic. The map refreshes every 15 seconds.
+## Experience
+
+- Responsive airspace dashboard with a dark map, overview metrics, and UTC clock.
+- Search aircraft by callsign or ICAO address; filter altitude and ground traffic.
+- Select a map marker or aircraft row for altitude, speed, heading, and vertical rate.
+- Explicit live, delayed, unavailable, and loading states; positions refresh every 15 seconds.
+- **Explore demo mode** provides eight clearly labeled illustrative flights without requiring a running backend. Demo positions are never presented as live data.
+- Keyboard-accessible controls and reduced-motion support.
+
+The map uses OpenStreetMap tiles. Aircraft colors indicate altitude in kilometers;
+flight details use feet and knots. Country labels describe registration origin,
+not flight departure or destination. This is an exploration tool, not for navigation.
 
 ## Stack
 
