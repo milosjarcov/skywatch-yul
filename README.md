@@ -5,15 +5,15 @@ data from the [OpenSky Network](https://opensky-network.org/).
 
 ## Experience
 
-- Responsive airspace dashboard with a dark map, overview metrics, and UTC clock.
+- Map-first aircraft tracker with a neutral basemap, compact aircraft list, and UTC clock.
 - Search aircraft by callsign or ICAO address; filter altitude and ground traffic.
 - Select a map marker or aircraft row for altitude, speed, heading, and vertical rate.
 - Explicit live, delayed, unavailable, and loading states; positions refresh every 15 seconds.
-- **Explore demo mode** provides eight clearly labeled illustrative flights without requiring a running backend. Demo positions are never presented as live data.
-- Keyboard-accessible controls and reduced-motion support.
+- **Use sample data** provides eight clearly labeled illustrative flights without requiring a running backend. Demo positions are never presented as live data.
+- Keyboard-accessible controls, reduced-motion support, and mobile flight selection that brings the map into view.
 
-The map uses OpenStreetMap tiles. Aircraft colors indicate altitude in kilometers;
-flight details use feet and knots. Country labels describe registration origin,
+The map uses OpenStreetMap tiles. Altitude filters, color bands, and flight details
+use feet; speeds use knots. Country labels describe registration origin,
 not flight departure or destination. This is an exploration tool, not for navigation.
 
 ## Stack
