@@ -5,7 +5,7 @@ data from the [OpenSky Network](https://opensky-network.org/).
 
 ## Experience
 
-- Editorial layout with Newsreader headings, a warm paper palette, a custom light vector map, and a searchable aircraft list.
+- Editorial layout with Public Sans typography, a warm paper palette, a custom light vector map, and a searchable aircraft list.
 - Search aircraft by callsign or ICAO address; filter altitude and ground traffic.
 - Select a map marker or aircraft row for altitude, speed, heading, and vertical rate.
 - Explicit live, delayed, unavailable, and loading states; positions refresh every 15 seconds.
