@@ -1,293 +1,372 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import L from "leaflet";
-const CENTER = [45.5, -73.75];
-const SAMPLE = [
-  ["ACA872", 45.57, -73.87, 4200, 190, 60],
-  ["ACA415", 45.43, -73.61, 1800, 125, 245],
-  ["WJA213", 45.66, -74.02, 7600, 225, 85],
-  ["TSC264", 45.38, -73.92, 9800, 245, 45],
-  ["JZA763", 45.51, -73.44, 3100, 155, 290],
-  ["ROU151", 45.72, -73.62, 6400, 205, 155],
-  ["DAL512", 45.29, -73.48, 11000, 250, 325],
-  ["ACA109", 45.47, -73.75, 0, 8, 240],
-].map(([callsign, lat, lon, alt_m, velocity_ms, heading], i) => ({
-  callsign,
-  lat,
-  lon,
-  alt_m,
-  velocity_ms,
-  heading,
-  icao24: `demo${i}`,
-  country: i === 6 ? "United States" : "Canada",
-  on_ground: alt_m === 0,
-  vertical_rate_ms: 0,
-}));
-const color = (f) =>
-  f.on_ground
-    ? "#737b85"
-    : f.alt_m < 1524
-      ? "#b6612e"
-      : f.alt_m < 6096
-        ? "#8a732e"
-        : "#315c8a";
-const fmt = (v, k = 1) =>
-  v == null ? "—" : Math.round(v * k).toLocaleString();
-const plane =
-  "M12 2 14 9 21 13 21 15 14 12.5 13.5 18 16 20 16 21.5 12 20.5 8 21.5 8 20 10.5 18 10 12.5 3 15 3 13 10 9Z";
-function Plane() {
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+const AirspaceMap = lazy(() => import("./components/AirspaceMap"));
+import useFlightFeed from "./useFlightFeed";
+import {
+  SAMPLE_FLIGHTS,
+  YUL,
+  PLANE_PATH,
+  formatNumber as fmt,
+  flightPhase,
+  distanceNM,
+} from "./airspace";
+
+function Icon({ name, size = 18 }) {
+  const paths = {
+    search: "M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
+    target: "M12 2v4m0 12v4M2 12h4m12 0h4M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0",
+    arrow: "M7 17 17 7M7 7h10v10",
+    plus: "M12 5v14M5 12h14",
+    minus: "M5 12h14",
+    close: "m6 6 12 12M6 18 18 6",
+    sliders: "M4 7h16M4 17h16M8 4v6m8 4v6",
+    layers: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5",
+  };
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-      <path fill="currentColor" d={plane} />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={paths[name]} />
     </svg>
   );
 }
 export default function App() {
-  const node = useRef(null),
-    map = useRef(null),
-    layer = useRef(null);
-  const [flights, setFlights] = useState([]),
-    [stamp, setStamp] = useState(null),
-    [error, setError] = useState(false),
-    [loading, setLoading] = useState(true),
-    [demo, setDemo] = useState(false),
+  const map = useRef(null),
+    about = useRef(null),
+    searchInput = useRef(null);
+  const [demo, setDemo] = useState(false),
     [search, setSearch] = useState(""),
     [ground, setGround] = useState(false),
-    [min, setMin] = useState(0),
+    [minAlt, setMinAlt] = useState(0),
+    [sort, setSort] = useState("callsign"),
     [selected, setSelected] = useState(null),
-    [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    map.current = L.map(node.current, { zoomControl: false }).setView(
-      CENTER,
-      9,
-    );
-    layer.current = L.layerGroup().addTo(map.current);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-    }).addTo(map.current);
-    L.control.zoom({ position: "bottomright" }).addTo(map.current);
-    L.circleMarker([45.4657, -73.7455], {
-      radius: 5,
-      color: "#303943",
-      fillOpacity: 1,
-    })
-      .addTo(map.current)
-      .bindTooltip("YUL · Montréal–Trudeau", {
-        permanent: true,
-        direction: "bottom",
-        className: "airport-label",
-      });
-    const observer = new ResizeObserver(() => map.current.invalidateSize());
-    observer.observe(node.current);
-    return () => {
-      observer.disconnect();
-      map.current.remove();
-    };
-  }, []);
-  useEffect(() => {
-    if (demo) return;
-    let cancelled = false;
-    const controller = new AbortController();
-    async function load() {
-      try {
-        const res = await fetch("/api/flights", { signal: controller.signal });
-        if (!res.ok) throw Error();
-        const data = await res.json();
-        if (!Array.isArray(data.flights) || !Number.isFinite(data.fetched_at))
-          throw Error();
-        if (!cancelled) {
-          setFlights(data.flights);
-          setStamp(data.fetched_at);
-          setError(false);
-        }
-      } catch {
-        if (!cancelled) setError(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    const id = setInterval(load, 15000);
-    return () => {
-      cancelled = true;
-      controller.abort();
-      clearInterval(id);
-    };
-  }, [demo]);
+    [labels, setLabels] = useState(true),
+    [ranges, setRanges] = useState(false),
+    [now, setNow] = useState(Date.now()),
+    [filters, setFilters] = useState(false);
+  const feed = useFlightFeed(demo);
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  const source = demo ? SAMPLE : flights;
+  useEffect(() => {
+    function key(event) {
+      if (
+        event.key === "/" &&
+        !["INPUT", "TEXTAREA", "SELECT"].includes(
+          document.activeElement?.tagName,
+        ) &&
+        !about.current?.open
+      ) {
+        event.preventDefault();
+        searchInput.current?.focus();
+      }
+      if (event.key === "Escape") setSelected(null);
+    }
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
+  const source = demo ? SAMPLE_FLIGHTS : feed.flights;
+  const airborne = source.filter((f) => !f.on_ground).length;
   const visible = useMemo(
     () =>
-      source.filter(
-        (f) =>
-          (ground || !f.on_ground) &&
-          (f.on_ground || (f.alt_m ?? 0) >= min * 0.3048) &&
-          `${f.callsign ?? ""} ${f.icao24}`
-            .toLowerCase()
-            .includes(search.trim().toLowerCase()),
-      ),
-    [source, ground, min, search],
+      source
+        .filter(
+          (f) =>
+            (ground || !f.on_ground) &&
+            (f.on_ground || (f.alt_m ?? 0) >= minAlt * 0.3048) &&
+            `${f.callsign ?? ""} ${f.icao24}`
+              .toLowerCase()
+              .includes(search.trim().toLowerCase()),
+        )
+        .sort((a, b) =>
+          sort === "altitude"
+            ? (b.alt_m ?? -1) - (a.alt_m ?? -1)
+            : (a.callsign || a.icao24).localeCompare(b.callsign || b.icao24),
+        ),
+    [source, ground, minAlt, search, sort],
   );
   const active = visible.find((f) => f.icao24 === selected);
-  useEffect(() => {
-    layer.current.clearLayers();
-    visible.forEach((f) => {
-      if (!Number.isFinite(f.lat) || !Number.isFinite(f.lon)) return;
-      const icon = L.divIcon({
-        className: `aircraft-marker ${selected === f.icao24 ? "selected" : ""}`,
-        html: `<svg width="28" height="28" viewBox="0 0 24 24" style="transform:rotate(${Number(f.heading) || 0}deg)"><path fill="${color(f)}" d="${plane}"/></svg>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
-      });
-      const label = document.createElement("span");
-      label.textContent = f.callsign || f.icao24;
-      L.marker([f.lat, f.lon], { icon, title: f.callsign || f.icao24 })
-        .addTo(layer.current)
-        .bindTooltip(label)
-        .on("click", () => selectFlight(f));
-    });
-  }, [visible, selected]);
-  const age = stamp ? Math.max(0, Math.floor(now / 1000 - stamp)) : null,
-    airborne = source.filter((f) => !f.on_ground);
+  const age = feed.stamp
+    ? Math.max(0, Math.floor(now / 1000 - feed.stamp))
+    : null;
   const status = demo
-    ? "Sample data"
-    : loading
-      ? "Connecting"
-      : error
-        ? "Feed unavailable"
+    ? "Sample positions"
+    : feed.error
+      ? "Connection interrupted"
+      : feed.loading
+        ? "Connecting"
         : age > 45
-          ? "Delayed feed"
-          : "Live feed";
-  function toggleDemo() {
+          ? "Delayed positions"
+          : "Live positions";
+  const hasFilters = search.trim() || minAlt > 0;
+  function selectFlight(f) {
+    setSelected(f.icao24);
+    map.current?.focus(f);
+  }
+  function switchMode() {
     setDemo(!demo);
     setSelected(null);
-    if (demo) setLoading(true);
   }
-  function selectFlight(flight) {
-    setSelected(flight.icao24);
-    const reducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    const isMobile = window.matchMedia("(max-width: 700px)").matches;
-    const zoom = Math.max(map.current.getZoom(), 10);
-    // Leave room below the selected marker for the mobile details panel.
-    const position = map.current.project([flight.lat, flight.lon], zoom);
-    if (isMobile) position.y += map.current.getSize().y * 0.25;
-    map.current.flyTo(map.current.unproject(position, zoom), zoom, {
-      duration: reducedMotion ? 0 : 0.5,
-    });
-    if (isMobile) {
-      node.current.scrollIntoView({
-        behavior: reducedMotion ? "instant" : "smooth",
-        block: "start",
-      });
-    }
-  }
-  const hasFilters = search.trim() || min > 0;
   return (
     <div className="app">
-      <header className="app-header">
-        <a className="brand" href="./" aria-label="SkyWatch YUL home">
-          <Plane /> <span>SkyWatch</span>
-          <span className="region-code">YUL</span>
+      <header className="masthead">
+        <a className="brand" href="./" aria-label="Skywatch home">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d={PLANE_PATH}
+              fill="currentColor"
+              transform="rotate(35 12 12)"
+            />
+          </svg>
+          <span>skywatch</span>
+          <span className="brand-code">YUL</span>
         </a>
-        <span className="header-description">Aircraft over Montréal</span>
-        <div className="header-status">
-          <span
-            className={`status ${demo || error || age > 45 ? "muted" : ""}`}
+        <nav aria-label="Project navigation">
+          <button onClick={() => about.current.showModal()}>
+            About the data
+          </button>
+          <a
+            href="https://github.com/milosjarcov/skywatch-yul"
+            target="_blank"
+            rel="noreferrer"
           >
-            <i aria-hidden="true" />
-            {status}
-          </span>
-          <time>
-            {new Date(now).toLocaleTimeString("en-GB", { timeZone: "UTC" })} UTC
-          </time>
-        </div>
-        <a
-          className="github"
-          href="https://github.com/milosjarcov/skywatch-yul"
-          target="_blank"
-          rel="noreferrer"
-        >
-          GitHub <span aria-hidden="true">↗</span>
-        </a>
+            View source <Icon name="arrow" size={14} />
+          </a>
+        </nav>
       </header>
-      <main className="workspace">
-        <aside className="sidebar" aria-label="Aircraft browser">
-          <div className="sidebar-intro">
-            <h1>Montréal</h1>
+      <main>
+        <section className="page-heading">
+          <div>
+            <p className="location-line">
+              Québec, Canada <span> / Live aircraft tracker</span>
+            </p>
+            <h1>
+              Montréal <em>airspace</em>
+            </h1>
+          </div>
+          <div className="feed-summary">
+            <span
+              className={`feed-state ${demo || feed.error || age > 45 ? "is-muted" : ""}`}
+            >
+              <i />
+              {status}
+            </span>
             <p>
-              {loading && !demo ? (
-                "Connecting to OpenSky…"
-              ) : error && !demo && !stamp ? (
-                "Live data is currently unavailable"
+              {feed.loading && !demo ? (
+                "Waiting for the first update"
               ) : (
                 <>
-                  {source.length} aircraft in range <span>·</span>{" "}
-                  {airborne.length} airborne
+                  <b>{airborne}</b> airborne <span>·</span> {source.length}{" "}
+                  tracked
                 </>
               )}
             </p>
+            <time>
+              {new Date(now).toLocaleTimeString("en-GB", { timeZone: "UTC" })}{" "}
+              UTC
+            </time>
           </div>
-          <div className="filter-area">
-            <label className="search">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                aria-hidden="true"
+        </section>
+        <div className="workspace">
+          <section
+            className={`map-panel ${active ? "has-selection" : ""}`}
+            aria-label="Interactive Montréal airspace map"
+          >
+            <Suspense
+              fallback={
+                <div className="map-loading" role="status">
+                  Loading the map…
+                </div>
+              }
+            >
+              <AirspaceMap
+                ref={map}
+                flights={visible}
+                selected={active?.icao24}
+                onSelect={selectFlight}
+                labels={labels}
+                ranges={ranges}
+              />
+            </Suspense>
+            <div className="map-topline">
+              <button
+                className="airport-link"
+                onClick={() => map.current?.airport()}
               >
-                <circle cx="10.5" cy="10.5" r="6.5" />
-                <path d="m16 16 5 5" />
-              </svg>
+                <span className="airport-cross">＋</span>
+                <b>YUL</b>
+                <span>Montréal–Trudeau</span>
+              </button>
+              <span className="north" title="Map orientation: north up">
+                N <span>↑</span>
+              </span>
+            </div>
+            {demo && (
+              <div className="sample-note">
+                Sample data. Positions are illustrative.
+              </div>
+            )}
+            {!demo && (feed.error || age > 45) && (
+              <div className="sample-note" role="status">
+                {feed.error
+                  ? "Live feed interrupted. Retrying automatically."
+                  : "Positions are delayed. Waiting for fresh data."}
+              </div>
+            )}
+            <div className="map-controls">
+              <button
+                title="Recenter on Montréal"
+                aria-label="Recenter map"
+                onClick={() => map.current?.reset()}
+              >
+                <Icon name="target" />
+              </button>
+              <div className="zoom-controls">
+                <button
+                  aria-label="Zoom in"
+                  onClick={() => map.current?.zoom(1)}
+                >
+                  <Icon name="plus" />
+                </button>
+                <button
+                  aria-label="Zoom out"
+                  onClick={() => map.current?.zoom(-1)}
+                >
+                  <Icon name="minus" />
+                </button>
+              </div>
+            </div>
+            <div className="map-layers">
+              <Icon name="layers" size={16} />
+              <button aria-pressed={labels} onClick={() => setLabels(!labels)}>
+                Callsigns
+              </button>
+              <span />
+              <button aria-pressed={ranges} onClick={() => setRanges(!ranges)}>
+                Distance rings
+              </button>
+            </div>
+            {active && (
+              <section
+                className="flight-detail"
+                aria-label="Selected aircraft details"
+              >
+                <div className="detail-title">
+                  <div>
+                    <span className="small-label">Selected aircraft</span>
+                    <h2>{active.callsign || active.icao24}</h2>
+                  </div>
+                  <div className="phase">
+                    <i />
+                    {flightPhase(active)}
+                  </div>
+                  <button
+                    className="close-detail"
+                    aria-label="Close flight details"
+                    onClick={() => setSelected(null)}
+                  >
+                    <Icon name="close" />
+                  </button>
+                </div>
+                <dl className="telemetry">
+                  {[
+                    ["Altitude", fmt(active.alt_m, 3.28084), "ft"],
+                    ["Ground speed", fmt(active.velocity_ms, 1.94384), "kt"],
+                    ["Heading", fmt(active.heading), "°"],
+                    [
+                      "Vertical rate",
+                      fmt(active.vertical_rate_ms, 196.85),
+                      "ft/min",
+                    ],
+                  ].map(([label, value, unit]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>
+                        {value} <small>{unit}</small>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="detail-bottom">
+                  <span>
+                    {active.country || "Unknown registration"} <span>·</span>{" "}
+                    {active.icao24}
+                  </span>
+                  <span>
+                    {distanceNM(YUL, [active.lon, active.lat]).toFixed(1)} NM
+                    from YUL
+                  </span>
+                </div>
+              </section>
+            )}
+          </section>
+          <aside className="aircraft-panel" aria-label="Aircraft browser">
+            <div className="list-heading">
+              <h2>Aircraft</h2>
+              <span>{String(visible.length).padStart(2, "0")}</span>
+            </div>
+            <div className="search-row">
+              <Icon name="search" size={16} />
               <input
+                ref={searchInput}
                 aria-label="Search callsign or ICAO"
-                placeholder="Find a callsign or ICAO"
+                placeholder="Search callsign or ICAO"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-              {search && (
-                <button
-                  className="clear-search"
-                  aria-label="Clear search"
-                  onClick={() => setSearch("")}
-                >
-                  ×
+              {search ? (
+                <button aria-label="Clear search" onClick={() => setSearch("")}>
+                  <Icon name="close" size={14} />
                 </button>
+              ) : (
+                <kbd>/</kbd>
               )}
-            </label>
-            <details className="filters">
-              <summary>
-                Filters{" "}
-                <span>
-                  {min > 0
-                    ? `${fmt(min)} ft minimum`
-                    : ground
-                      ? "Ground included"
-                      : "Airborne only"}
-                </span>
-              </summary>
-              <div className="filter-controls">
-                <label className="altitude-filter">
-                  Minimum altitude <output>{fmt(min)} ft</output>
+            </div>
+            <div className="filter-row">
+              <button
+                className={
+                  filters || ground || minAlt
+                    ? "filter-button active"
+                    : "filter-button"
+                }
+                aria-expanded={filters}
+                aria-controls="aircraft-filters"
+                onClick={() => setFilters(!filters)}
+              >
+                <Icon name="sliders" size={14} />
+                Filters{(ground || minAlt > 0) && <i />}
+              </button>
+              <label className="sort-control">
+                <span className="sr-only">Sort aircraft</span>
+                <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                  <option value="callsign">Callsign A–Z</option>
+                  <option value="altitude">Highest altitude</option>
+                </select>
+              </label>
+            </div>
+            {filters && (
+              <div id="aircraft-filters" className="filter-content">
+                <label>
+                  Minimum airborne altitude <output>{fmt(minAlt)} ft</output>
                   <input
                     type="range"
                     aria-label="Minimum altitude"
                     min="0"
                     max="40000"
                     step="1000"
-                    value={min}
-                    onChange={(e) => setMin(Number(e.target.value))}
+                    value={minAlt}
+                    onChange={(e) => setMinAlt(Number(e.target.value))}
                   />
                 </label>
-                <label className="ground">
+                <label className="ground-filter">
                   <input
                     type="checkbox"
                     checked={ground}
@@ -296,208 +375,169 @@ export default function App() {
                   Include ground traffic
                 </label>
               </div>
-            </details>
-          </div>
-          <div className="list-label">
-            <span>
-              Aircraft <b>{visible.length}</b>
-            </span>
-            <span>
-              Altitude <small>ft</small>
-            </span>
-            <span>
-              Speed <small>kt</small>
-            </span>
-          </div>
-          <div className="flight-list">
-            {visible.map((f) => (
-              <button
-                className={`flight-row ${selected === f.icao24 ? "active" : ""}`}
-                aria-pressed={selected === f.icao24}
-                key={f.icao24}
-                onClick={() => selectFlight(f)}
-              >
-                <span className="flight-name">
-                  <b>
-                    <i style={{ background: color(f) }} aria-hidden="true" />
-                    {f.callsign || f.icao24}
-                  </b>
-                  <small>{f.country || "Unknown registration"}</small>
-                </span>
-                <span className="flight-value">
-                  {f.on_ground ? "Ground" : fmt(f.alt_m, 3.28084)}
-                </span>
-                <span className="flight-value">
-                  {fmt(f.velocity_ms, 1.94384)}
-                </span>
-              </button>
-            ))}
-            {!visible.length && (
-              <div className="empty">
-                <h2>
-                  {loading && !demo
-                    ? "Loading aircraft…"
-                    : hasFilters
-                      ? "No matching aircraft"
-                      : error && !demo
-                        ? "Live feed unavailable"
-                        : "No aircraft in view"}
-                </h2>
-                <p>
-                  {hasFilters
-                    ? "Try another callsign or lower the minimum altitude."
-                    : error && !demo
-                      ? "We’ll retry automatically. You can use sample data in the meantime."
-                      : "Aircraft appear here when a position is received."}
-                </p>
-                {hasFilters ? (
-                  <button
-                    onClick={() => {
-                      setSearch("");
-                      setMin(0);
-                    }}
-                  >
-                    Clear filters
-                  </button>
-                ) : (
-                  !loading && (
+            )}
+            <div className="table-head">
+              <span>Callsign / Registration</span>
+              <span>Altitude, ft</span>
+            </div>
+            <div className="flight-list">
+              {visible.map((f) => (
+                <button
+                  className={`flight-row ${active?.icao24 === f.icao24 ? "selected" : ""}`}
+                  aria-pressed={active?.icao24 === f.icao24}
+                  key={f.icao24}
+                  onClick={() => selectFlight(f)}
+                >
+                  <span className="row-name">
+                    <b>{f.callsign || f.icao24}</b>
+                    <small>{f.country || "Unknown registration"}</small>
+                  </span>
+                  <span className="row-altitude">
+                    {f.on_ground ? "Ground" : fmt(f.alt_m, 3.28084)}
+                    <span className="trend" aria-label={flightPhase(f)}>
+                      {f.on_ground
+                        ? ""
+                        : f.vertical_rate_ms > 0.5
+                          ? "↗"
+                          : f.vertical_rate_ms < -0.5
+                            ? "↘"
+                            : "–"}
+                    </span>
+                  </span>
+                </button>
+              ))}
+              {!visible.length && (
+                <div className="empty">
+                  <h3>
+                    {feed.loading && !demo
+                      ? "Loading aircraft"
+                      : hasFilters
+                        ? "No matching aircraft"
+                        : feed.error && !demo
+                          ? "Feed unavailable"
+                          : "No aircraft to display"}
+                  </h3>
+                  <p>
+                    {hasFilters
+                      ? "Try a different callsign or lower your altitude filter."
+                      : feed.error && !demo
+                        ? "The live feed will retry automatically. You can explore sample data in the meantime."
+                        : "Aircraft appear here as positions are received."}
+                  </p>
+                  {hasFilters ? (
                     <button
                       onClick={() => {
-                        if (source.length) setGround(true);
-                        else setDemo(true);
+                        setSearch("");
+                        setMinAlt(0);
                       }}
                     >
-                      {source.length
-                        ? "Include ground traffic"
-                        : "Use sample data"}
+                      Clear filters
                     </button>
-                  )
-                )}
-              </div>
-            )}
-          </div>
-          <div className="sidebar-bottom">
-            <span>
-              {demo
-                ? "Illustrative aircraft positions"
-                : age === null
-                  ? "Updates every 15 seconds"
-                  : `Updated ${age}s ago`}
-            </span>
-            <button onClick={toggleDemo}>
-              {demo ? "Return to live" : "Use sample data"}
-            </button>
-          </div>
-        </aside>
-        <section className="map-panel" aria-label="Montréal aircraft map">
-          <div id="map" ref={node} />
-          <div className="map-tools">
-            <button
-              aria-label="Recenter map on Montréal"
-              title="Recenter on Montréal"
-              onClick={() => map.current.setView(CENTER, 9)}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="6" />
-                <path d="M12 2v5m0 10v5M2 12h5m10 0h5" />
-              </svg>
-            </button>
-          </div>
-          {(demo || error || (!loading && age > 45)) && (
-            <div className="notice" role="status">
-              {demo
-                ? "Sample data · These positions are not live"
-                : error
-                  ? "Connection lost. Retrying automatically."
-                  : "Positions are delayed. Waiting for an update."}
-            </div>
-          )}
-          {active && (
-            <section className="detail" aria-label="Selected aircraft details">
-              <div className="detail-heading">
-                <div>
-                  <h2>{active.callsign || active.icao24}</h2>
-                  <p>
-                    {active.country || "Unknown registration"} <span>·</span>{" "}
-                    {active.icao24}
-                    {active.on_ground ? " · On ground" : ""}
-                  </p>
+                  ) : (
+                    !feed.loading && (
+                      <button
+                        onClick={() =>
+                          source.length ? setGround(true) : setDemo(true)
+                        }
+                      >
+                        {source.length
+                          ? "Show ground traffic"
+                          : "Explore sample data"}
+                      </button>
+                    )
+                  )}
                 </div>
-                <button
-                  aria-label="Close flight details"
-                  onClick={() => setSelected(null)}
-                >
-                  ×
-                </button>
-              </div>
-              <dl className="detail-grid">
-                {[
-                  ["Altitude", fmt(active.alt_m, 3.28084), "ft"],
-                  ["Ground speed", fmt(active.velocity_ms, 1.94384), "kt"],
-                  ["Heading", fmt(active.heading), "°"],
-                  [
-                    "Vertical rate",
-                    fmt(active.vertical_rate_ms, 196.85),
-                    "ft/min",
-                  ],
-                ].map(([label, value, unit]) => (
-                  <div key={label}>
-                    <dt>{label}</dt>
-                    <dd>
-                      {value} <small>{unit}</small>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          )}
-          <div className="legend" aria-label="Aircraft altitude colors">
-            <span>Altitude</span>
-            <span>
-              <i style={{ background: "#b6612e" }} />
-              &lt; 5,000 ft
-            </span>
-            <span>
-              <i style={{ background: "#8a732e" }} />
-              5,000–20,000 ft
-            </span>
-            <span>
-              <i style={{ background: "#315c8a" }} />
-              20,000+ ft
-            </span>
-            {ground && (
+              )}
+            </div>
+            <div className="list-footer">
               <span>
-                <i style={{ background: "#737b85" }} />
-                Ground
+                {demo
+                  ? "Illustrative snapshot"
+                  : age === null
+                    ? "Refreshes every 15s"
+                    : `Updated ${age}s ago`}
               </span>
-            )}
-          </div>
-        </section>
+              <button onClick={switchMode}>
+                {demo ? "Return to live" : "Try sample data"} <span>↗</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+        <footer className="page-footer">
+          <p>
+            Aircraft positions by{" "}
+            <a
+              href="https://opensky-network.org/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              OpenSky Network
+            </a>
+          </p>
+          <p>For observation. Not for navigation.</p>
+        </footer>
       </main>
-      <footer className="app-footer">
-        <span>
-          Data from{" "}
+      <dialog
+        ref={about}
+        className="about-dialog"
+        aria-label="About Skywatch and aircraft data"
+      >
+        <div className="dialog-top">
+          <span className="small-label">About Skywatch</span>
+          <button
+            aria-label="Close about dialog"
+            onClick={() => about.current.close()}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+        <h2>
+          A window into
+          <br />
+          <em>Montréal’s airspace.</em>
+        </h2>
+        <p>
+          Skywatch visualizes aircraft broadcasting ADS-B positions over Greater
+          Montréal. The OpenSky Network supplies the data; the map refreshes
+          every 15 seconds.
+        </p>
+        <dl>
+          <div>
+            <dt>What you’re seeing</dt>
+            <dd>
+              Reported positions, altitude, speed, heading, and vertical rate.
+              Coverage varies; this is not a complete picture of all air
+              traffic.
+            </dd>
+          </div>
+          <div>
+            <dt>Reading the map</dt>
+            <dd>
+              Aircraft point in their reported direction of travel. The selected
+              aircraft is orange. Optional rings show distances of 10 and 20
+              nautical miles from Montréal–Trudeau.
+            </dd>
+          </div>
+          <div>
+            <dt>Data notes</dt>
+            <dd>
+              Country means registration country, not departure location.
+              Altitude is reported barometric altitude when available. Delayed
+              positions and sample data are explicitly labeled.
+            </dd>
+          </div>
+        </dl>
+        <div className="dialog-footer">
           <a
-            href="https://opensky-network.org/"
+            href="https://github.com/milosjarcov/skywatch-yul"
             target="_blank"
             rel="noreferrer"
           >
-            OpenSky Network
+            Explore the source <Icon name="arrow" size={14} />
           </a>
-        </span>
-        <span>
-          Greater Montréal <span className="footer-separator">/</span> Not for
-          navigation
-        </span>
-      </footer>
+          <button onClick={() => about.current.close()}>Back to the map</button>
+        </div>
+      </dialog>
     </div>
   );
 }

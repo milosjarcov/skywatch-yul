@@ -5,22 +5,25 @@ data from the [OpenSky Network](https://opensky-network.org/).
 
 ## Experience
 
-- Map-first aircraft tracker with a neutral basemap, compact aircraft list, and UTC clock.
+- Editorial layout with Newsreader headings, a warm paper palette, a custom light vector map, and a searchable aircraft list.
 - Search aircraft by callsign or ICAO address; filter altitude and ground traffic.
 - Select a map marker or aircraft row for altitude, speed, heading, and vertical rate.
 - Explicit live, delayed, unavailable, and loading states; positions refresh every 15 seconds.
-- **Use sample data** provides eight clearly labeled illustrative flights without requiring a running backend. Demo positions are never presented as live data.
+- **Try sample data** provides eight clearly labeled illustrative flights without requiring a running backend. Demo positions are never presented as live data.
 - Keyboard-accessible controls, reduced-motion support, and mobile flight selection that brings the map into view.
 
-The map uses OpenStreetMap tiles. Altitude filters, color bands, and flight details
-use feet; speeds use knots. Country labels describe registration origin,
+The MapLibre map uses [OpenFreeMap](https://openfreemap.org/) vector tiles,
+with OpenMapTiles and OpenStreetMap attribution. Its custom style emphasizes
+waterways, towns, and airport geometry. Optional 10 and 20 nautical mile rings
+are centered on YUL; selecting an aircraft shows its distance from the airport.
+Altitude filters and flight details use feet; speeds use knots. Country labels describe registration origin,
 not flight departure or destination. This is an exploration tool, not for navigation.
 
 ## Stack
 
 - **Backend:** FastAPI (Python) — a single `/api/flights` endpoint that
   proxies OpenSky
-- **Frontend:** React + Vite + Leaflet
+- **Frontend:** React + Vite + MapLibre GL
 - **Data:** OpenSky Network REST API (anonymous access)
 
 ## The interesting problem: a 400-call budget
