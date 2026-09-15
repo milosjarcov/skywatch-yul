@@ -3,16 +3,27 @@
 Live map of aircraft over Montreal (YUL), built on real-time ADS-B transponder
 data from the [OpenSky Network](https://opensky-network.org/).
 
-Planes appear as heading-rotated icons colored by altitude band (orange = low,
-yellow = mid, blue = cruise, gray = on the ground). Click a plane for its
-callsign, altitude, speed, and climb rate. Filter by callsign, minimum
-altitude, or ground traffic. The map refreshes every 15 seconds.
+## Experience
+
+- Editorial layout with Public Sans typography, a warm paper palette, a custom light vector map, and a searchable aircraft list.
+- Search aircraft by callsign or ICAO address; filter altitude and ground traffic.
+- Select a map marker or aircraft row for altitude, speed, heading, and vertical rate.
+- Explicit live, delayed, unavailable, and loading states; positions refresh every 15 seconds.
+- **Try sample data** provides eight clearly labeled illustrative flights without requiring a running backend. Demo positions are never presented as live data.
+- Keyboard-accessible controls, reduced-motion support, and mobile flight selection that brings the map into view.
+
+The MapLibre map uses [OpenFreeMap](https://openfreemap.org/) vector tiles,
+with OpenMapTiles and OpenStreetMap attribution. Its custom style emphasizes
+waterways, towns, and airport geometry. Optional 10 and 20 nautical mile rings
+are centered on YUL; selecting an aircraft shows its distance from the airport.
+Altitude filters and flight details use feet; speeds use knots. Country labels describe registration origin,
+not flight departure or destination. This is an exploration tool, not for navigation.
 
 ## Stack
 
 - **Backend:** FastAPI (Python) — a single `/api/flights` endpoint that
   proxies OpenSky
-- **Frontend:** React + Vite + Leaflet
+- **Frontend:** React + Vite + MapLibre GL
 - **Data:** OpenSky Network REST API (anonymous access)
 
 ## The interesting problem: a 400-call budget
