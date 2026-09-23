@@ -6,8 +6,12 @@ Montreal area and serve them to the frontend as clean JSON.
 Design notes (why it's built this way):
 - OpenSky anonymous access has a budget of ~400 calls/day, so we must NOT
   call it once per browser request. Instead we use a lazy cache: a request
-  triggers a real OpenSky call only if the cached copy is older than
-  CACHE_TTL_SECONDS. 50 simultaneous users still cost 1 call.
+  triggers a real OpenSky call only if the last one was more than
+  CACHE_TTL_SECONDS ago. 50 simultaneous users still cost 1 call.
+- FastAPI runs plain `def` routes on a thread pool, so several requests can
+  check the cache at the same instant. A lock makes them take turns, which is
+  what actually guarantees the "1 call" above: the first request refreshes
+  the cache and the others get that fresh copy.
 - OpenSky returns each aircraft as a bare list (not a dict), with nullable
   fields. parse_state() converts that into a named, predictable shape so the
   frontend never has to know about magic indexes.
@@ -16,6 +20,7 @@ Design notes (why it's built this way):
 """
 
 import logging
+import threading
 import time
 
 import requests
@@ -50,7 +55,10 @@ app.add_middleware(
 
 # Module-level cache. Fine for a single-process app; a multi-worker deployment
 # would move this to Redis, but that's deliberate over-engineering here.
-_cache = {"fetched_at": 0.0, "payload": None}
+# attempted_at is when we last *tried* OpenSky, successful or not, so a
+# failing OpenSky also gets at most one call per window.
+_cache = {"attempted_at": 0.0, "payload": None}
+_cache_lock = threading.Lock()
 
 # Running totals for /api/health, so you can watch the cache do its job.
 _stats = {"requests": 0, "opensky_calls": 0, "opensky_calls_left": None}
@@ -105,25 +113,28 @@ def fetch_from_opensky() -> dict:
 
 @app.get("/api/flights")
 def get_flights():
-    _stats["requests"] += 1
-    now = time.time()
-    cache_age = now - _cache["fetched_at"]
+    with _cache_lock:
+        _stats["requests"] += 1
+        now = time.time()
 
-    if _cache["payload"] is not None and cache_age < CACHE_TTL_SECONDS:
-        return _cache["payload"]
+        if now - _cache["attempted_at"] < CACHE_TTL_SECONDS:
+            if _cache["payload"] is None:
+                # The last attempt failed moments ago. Don't retry yet.
+                raise HTTPException(status_code=502, detail="OpenSky is unreachable")
+            return _cache["payload"]
 
-    try:
-        _cache["payload"] = fetch_from_opensky()
-        _cache["fetched_at"] = now
-    except requests.RequestException as exc:
-        log.warning("OpenSky fetch failed: %s", exc)
+        _cache["attempted_at"] = now
+        try:
+            _cache["payload"] = fetch_from_opensky()
+        except requests.RequestException as exc:
+            # Keep whatever we had. attempted_at is already bumped, so
+            # OpenSky gets a break until the next window either way.
+            log.warning("OpenSky fetch failed: %s", exc)
+
         if _cache["payload"] is None:
             # No stale copy to fall back on; surface a real error.
             raise HTTPException(status_code=502, detail="OpenSky is unreachable")
-        # Serve stale data; don't hammer OpenSky again for another TTL window.
-        _cache["fetched_at"] = now
-
-    return _cache["payload"]
+        return _cache["payload"]
 
 
 @app.get("/api/health")
