@@ -1,18 +1,20 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Spinner from "./components/Spinner";
+import Landing from "./pages/Landing";
 
 // The map page pulls in Leaflet and MapLibre, which is most of the app's
-// JavaScript. Loading it lazily gets a spinner on screen right away instead
-// of a blank page while it downloads. Vite turns import() into its own file.
+// JavaScript. Loading it lazily means the landing page's text shows up
+// without waiting for a map engine. Vite turns import() into its own file.
 const MapPage = lazy(() => import("./pages/MapPage"));
 
-// The tracker lives at "/map". No account needed: open the link and you're
-// watching.
+// Two pages: "/" introduces SkyWatch, "/map" is the tracker itself.
+// Neither needs an account: open the link and you're watching.
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<Landing />} />
         <Route
           path="/map"
           element={
@@ -27,7 +29,7 @@ export default function App() {
             </Suspense>
           }
         />
-        <Route path="*" element={<Navigate to="/map" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

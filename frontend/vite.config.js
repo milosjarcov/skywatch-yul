@@ -14,7 +14,7 @@ export default defineConfig({
   worker: { format: "es" },
   build: {
     // MapLibre alone is about 1 MB minified. It already lives in lazy-loaded
-    // chunks (see App.jsx and MapPage.jsx), so the default 500 kB warning is noise.
+    // chunks (see App.jsx, MapPage.jsx, and Landing.jsx), so the default 500 kB warning is noise.
     chunkSizeWarningLimit: 1400,
   },
 });

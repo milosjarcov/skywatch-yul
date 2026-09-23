@@ -1,0 +1,655 @@
+/* ==========================================================================
+   Front page
+
+   A product page in the tracker's flight-deck look (tokens in index.css):
+   short headlines, one idea per section, and the real product running live
+   in large frames instead of pictures of it.
+   ========================================================================== */
+
+html:has(.landing) {
+  scroll-behavior: smooth;
+  scroll-padding-top: 56px;
+}
+
+.landing {
+  overflow-x: clip;
+}
+
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.8s ease, transform 1s var(--ease);
+}
+
+[data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cyan);
+  text-decoration: none;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.button-large {
+  height: 48px;
+  padding: 0 24px;
+  font-size: 16px;
+}
+
+/* ---- Nav ----------------------------------------------------------------- */
+
+.site-nav {
+  position: sticky;
+  z-index: 100;
+  top: 0;
+  height: 56px;
+  border-bottom: 1px solid var(--rule);
+  background: rgba(7, 9, 12, 0.82);
+  backdrop-filter: saturate(160%) blur(16px);
+  -webkit-backdrop-filter: saturate(160%) blur(16px);
+}
+
+.site-nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  height: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.site-nav nav {
+  display: flex;
+  gap: 26px;
+  margin-left: auto;
+}
+
+.site-nav nav a {
+  font-size: 13px;
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.site-nav nav a:hover {
+  color: var(--text);
+}
+
+.nav-cta {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+/* ---- Hero: the live radar behind the headline ---------------------------- */
+
+.hero {
+  position: relative;
+  height: calc(100vh - 56px);
+  height: calc(100svh - 56px);
+  min-height: 620px;
+  max-height: 900px;
+  overflow: hidden;
+}
+
+.hero-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* Darken the map under the text, and fade it into the page at the bottom. */
+.hero-map::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background:
+    linear-gradient(90deg, var(--bg) 0%, rgba(7, 9, 12, 0.88) 36%, rgba(7, 9, 12, 0) 62%),
+    linear-gradient(rgba(7, 9, 12, 0) 75%, var(--bg));
+  pointer-events: none;
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  pointer-events: none;
+}
+
+.hero-text {
+  max-width: 520px;
+  pointer-events: auto;
+}
+
+.hero-text > * {
+  animation: rise 1s var(--ease) backwards;
+}
+
+.hero-text > :nth-child(2) {
+  animation-delay: 0.07s;
+}
+
+.hero-text > :nth-child(3) {
+  animation-delay: 0.14s;
+}
+
+.hero-text > :nth-child(4) {
+  animation-delay: 0.21s;
+}
+
+.hero-text > :nth-child(5) {
+  animation-delay: 0.28s;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+.hero-kicker {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--cyan);
+}
+
+.hero h1 {
+  margin-top: 10px;
+  font-size: clamp(44px, 5.6vw, 72px);
+  line-height: 1.02;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.hero-lead {
+  margin-top: 20px;
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* Live numbers, set like an instrument row. */
+.readings {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: start;
+  margin-top: 30px;
+  border-top: 1px solid var(--rule-strong);
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.readings div {
+  padding: 10px 22px 10px 0;
+}
+
+.readings div + div {
+  padding-left: 22px;
+  border-left: 1px solid var(--rule);
+}
+
+.readings dt {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.readings dd {
+  margin-top: 2px;
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.readings small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.hero-note {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--amber);
+}
+
+/* ---- Feature sections ---------------------------------------------------- */
+
+.feature {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 140px 24px 0;
+}
+
+.feature-head {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.feature h2,
+.highlights > h2,
+.reliability > h2,
+.closing > h2 {
+  font-size: clamp(38px, 5vw, 60px);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.feature-head p {
+  margin-top: 20px;
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+
+/* The real product, framed large. */
+.showcase {
+  position: relative;
+  height: min(62vh, 600px);
+  min-height: 380px;
+  margin-top: 56px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--pane);
+  box-shadow: 0 0 0 1px var(--rule), 0 40px 120px rgba(0, 0, 0, 0.55);
+}
+
+.showcase .map {
+  border-radius: inherit;
+}
+
+.showcase-profile {
+  height: 360px;
+  min-height: 0;
+}
+
+.showcase-profile .profile {
+  height: 100%;
+}
+
+/* Text on one side, the product on the other. */
+.feature-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  align-items: center;
+  gap: 48px 96px;
+}
+
+.feature-split.is-reversed {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+}
+
+.feature-split.is-reversed .feature-head {
+  order: 2;
+}
+
+.feature-split .feature-head {
+  margin: 0;
+  text-align: left;
+}
+
+.feature-split .text-link {
+  margin-top: 24px;
+}
+
+.device {
+  height: 680px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--pane);
+  box-shadow: 0 0 0 1px var(--rule), 0 40px 120px rgba(0, 0, 0, 0.55);
+}
+
+.device .readout {
+  height: 100%;
+}
+
+.device .readout-nav {
+  display: none;
+}
+
+.device .readout-body {
+  padding-top: 20px;
+}
+
+.device-empty {
+  padding: 40px 24px;
+  font-size: 14px;
+  color: var(--text-3);
+}
+
+.device-art {
+  height: auto;
+  padding: 28px 24px 18px;
+}
+
+/* ---- The rewind illustration --------------------------------------------- */
+
+.rewind-art {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rewind-rings circle {
+  fill: none;
+  stroke: rgba(76, 201, 240, 0.16);
+}
+
+.rewind-ring-label {
+  font-size: 10px;
+  font-weight: 600;
+  fill: rgba(76, 201, 240, 0.55);
+}
+
+.rewind-track {
+  fill: none;
+  stroke: var(--magenta);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+}
+
+.rewind-plane {
+  fill: var(--cyan);
+}
+
+.rewind-rail {
+  stroke: var(--pane-3);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.rewind-fill {
+  stroke: var(--amber);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+}
+
+.rewind-knob {
+  fill: var(--text);
+}
+
+.rewind-time {
+  font-size: 12px;
+  fill: var(--text-3);
+}
+
+/* ---- Highlights ---------------------------------------------------------- */
+
+.highlights,
+.reliability,
+.closing {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 150px 24px 0;
+  text-align: center;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 40px 32px;
+  margin-top: 72px;
+}
+
+/* Reversed so the number sits above its caption; flex-end lines every
+   number up along the top. */
+.stats div {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.stats div:nth-child(2) {
+  transition-delay: 0.08s;
+}
+
+.stats div:nth-child(3) {
+  transition-delay: 0.16s;
+}
+
+.stats div:nth-child(4) {
+  transition-delay: 0.24s;
+}
+
+.stats dd {
+  font-size: clamp(44px, 5vw, 64px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stats dt {
+  max-width: 220px;
+  margin-top: 14px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--text-2);
+  text-wrap: balance;
+}
+
+/* ---- Built to stay up ---------------------------------------------------- */
+
+.reliability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px 48px;
+  margin-top: 64px;
+  text-align: left;
+}
+
+.reliability-grid > div {
+  padding-top: 20px;
+  border-top: 1px solid var(--rule-strong);
+}
+
+.reliability h3 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.reliability-grid p {
+  margin-top: 8px;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.reliability > .text-link {
+  margin-top: 48px;
+}
+
+/* ---- Closing and footer -------------------------------------------------- */
+
+.closing {
+  padding-bottom: 150px;
+}
+
+.closing p {
+  margin-top: 14px;
+  font-size: 21px;
+  color: var(--text-2);
+}
+
+.closing .button {
+  margin-top: 32px;
+}
+
+.footer {
+  border-top: 1px solid var(--rule);
+  background: var(--pane);
+}
+
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 22px 24px 26px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.footer nav {
+  display: flex;
+  gap: 20px;
+}
+
+.footer a {
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: var(--text);
+}
+
+.credits {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.credits a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---- Narrow screens ------------------------------------------------------ */
+
+@media (max-width: 900px) {
+  .feature-split,
+  .feature-split.is-reversed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feature-split.is-reversed .feature-head {
+    order: 0;
+  }
+
+  .device {
+    width: 100%;
+    max-width: 420px;
+    height: 620px;
+    margin: 0 auto;
+  }
+
+  .device-art {
+    max-width: none;
+    height: auto;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reliability-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .site-nav nav {
+    display: none;
+  }
+
+  .nav-cta {
+    margin-left: auto;
+  }
+
+  /* On a phone the radar sits under the headline instead of behind it. */
+  .hero {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+  }
+
+  .hero-map {
+    position: relative;
+    order: 2;
+    height: 380px;
+  }
+
+  .hero-map::after {
+    background: linear-gradient(var(--bg), rgba(7, 9, 12, 0) 30%, rgba(7, 9, 12, 0) 75%, var(--bg));
+  }
+
+  .hero-inner {
+    padding: 48px 20px 12px;
+  }
+
+  .readings {
+    grid-template-columns: repeat(3, auto);
+  }
+
+  .readings div {
+    padding-right: 14px;
+  }
+
+  .readings div + div {
+    padding-left: 14px;
+  }
+
+  .readings dd {
+    font-size: 22px;
+  }
+
+  .feature {
+    padding-top: 100px;
+  }
+
+  .feature-head p {
+    font-size: 17px;
+  }
+
+  .showcase {
+    height: 420px;
+    margin-top: 40px;
+  }
+
+  .showcase-profile {
+    height: 300px;
+  }
+
+  .highlights,
+  .reliability,
+  .closing {
+    padding-top: 110px;
+  }
+}
