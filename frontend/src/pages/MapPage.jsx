@@ -3,18 +3,20 @@ import { useSearchParams } from "react-router-dom";
 import { FrameIcon, MinusIcon, PlusIcon } from "../components/Icons";
 import Readout from "../components/Readout";
 import Search from "../components/Search";
+import SideView from "../components/SideView";
 import TopBar from "../components/TopBar";
 import TrafficList from "../components/TrafficList";
 import { useFlights } from "../hooks/useFlights";
-import { byCallsign, formatNumber, matchesSearch } from "../lib/flights";
+import { altitudeFeet, byCallsign, formatNumber, matchesSearch } from "../lib/flights";
 
 // The map engines (Leaflet and MapLibre) are most of this page's JavaScript.
 // Loading them as their own file lets the panels appear and the first data
 // request start while they're still downloading.
 const FlightMap = lazy(() => import("../components/FlightMap"));
 
-// The tracker, laid out like an instrument panel: a top bar, the map, and a
-// column on the right with the traffic list or the selected flight's readout.
+// The tracker, laid out like an instrument panel: a top bar, the map with
+// the vertical profile directly under it (so the two line up), and a column
+// on the right with the traffic list or the selected flight's readout.
 export default function MapPage() {
   const feed = useFlights();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -22,40 +24,54 @@ export default function MapPage() {
   // open straight to it and reloading keeps it open.
   const selectedId = searchParams.get("flight");
   const [query, setQuery] = useState("");
+  const [showGround, setShowGround] = useState(false);
+  const [minFeet, setMinFeet] = useState(0);
   const [hoveredId, setHoveredId] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef(null);
   const searchRef = useRef(null);
   const focusedLinkedFlight = useRef(false);
 
-  // Where each plane is right now, from the live motion model.
+  // Where each plane is right now, for the map and the profile: the live
+  // motion model.
   const tracker = useMemo(() => ({ positionAt: (id, now) => feed.motion.positionAt(id, now) }), [feed.motion]);
 
-  // Planes in the air that match the search.
+  // ---- Which planes to show -----------------------------------------------
+  // Search and the ground switch decide which planes are on screen at all.
+  // The profile shows all of those, fading the ones under the floor; the map
+  // and the list leave the faded ones out.
+  const searched = useMemo(
+    () => feed.flights.filter((f) => (showGround || !f.on_ground) && matchesSearch(f, query)),
+    [feed.flights, showGround, query],
+  );
   const visible = useMemo(
-    () => feed.flights.filter((f) => !f.on_ground && matchesSearch(f, query)).sort(byCallsign),
-    [feed.flights, query],
+    () => searched.filter((f) => f.on_ground || (altitudeFeet(f) ?? 0) >= minFeet).sort(byCallsign),
+    [searched, minFeet],
   );
 
-  // A selected plane stays on screen even if the search would hide it. If
+  // A selected plane stays on screen even if the filters would hide it. If
   // it drops out of the feed entirely, keep showing its last report.
   const liveSelected = selectedId ? (feed.flights.find((f) => f.icao24 === selectedId) ?? null) : null;
   const [lastSeen, setLastSeen] = useState(null);
   if (liveSelected && liveSelected !== lastSeen) setLastSeen(liveSelected);
   const selected = liveSelected ?? (lastSeen?.icao24 === selectedId ? lastSeen : null);
-  const mapFlights = useMemo(
-    () => (liveSelected && !visible.includes(liveSelected) ? [...visible, liveSelected] : visible),
-    [visible, liveSelected],
+  const withSelected = useCallback(
+    (list) => (liveSelected && !list.includes(liveSelected) ? [...list, liveSelected] : list),
+    [liveSelected],
   );
+  const mapFlights = useMemo(() => withSelected(visible), [withSelected, visible]);
+  const profileFlights = useMemo(() => withSelected(searched), [withSelected, searched]);
 
   const hiddenCount = feed.flights.length - visible.length;
   let note = `${formatNumber(visible.length)} shown`;
   if (hiddenCount > 0) {
-    const reasons = ["on the ground", query && "not matching"];
+    const reasons = [!showGround && "on the ground", minFeet > 0 && `below ${formatNumber(minFeet)} ft`, query && "not matching"];
     note += `, ${formatNumber(hiddenCount)} hidden (${reasons.filter(Boolean).join(", ")})`;
   }
 
   // ---- Selecting ------------------------------------------------------------
+
+  const projectX = useCallback((lat, lon) => mapRef.current?.projectX(lat, lon) ?? null, []);
 
   const select = useCallback(
     (flight, { fly = false } = {}) => {
@@ -144,6 +160,24 @@ export default function MapPage() {
             <span className="sr-only">Zoom out</span>
           </button>
         </div>
+      </div>
+
+      <div className="deck-profile">
+        <SideView
+          flights={profileFlights}
+          tracker={tracker}
+          clockOffset={feed.clockOffset}
+          projectX={projectX}
+          selectedId={selectedId}
+          hoveredId={hoveredId}
+          trail={selectedId ? feed.history.get(selectedId) : null}
+          onSelect={selectById}
+          onHover={setHoveredId}
+          minFeet={minFeet}
+          onMinFeetChange={setMinFeet}
+          showGround={showGround}
+          onShowGroundChange={setShowGround}
+        />
       </div>
 
       <aside className="deck-side">

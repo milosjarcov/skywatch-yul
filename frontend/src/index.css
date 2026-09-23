@@ -279,15 +279,17 @@ abbr {
    The tracker (/map)
    ========================================================================== */
 
-/* Docked panes, like a cockpit display or a pro app. */
+/* Docked panes, like a cockpit display or a pro app: the profile sits
+   directly under the map at exactly the same width, so the two line up. */
 .deck {
   display: grid;
   height: 100%;
   grid-template-columns: minmax(0, 1fr) 360px;
-  grid-template-rows: 52px minmax(0, 1fr);
+  grid-template-rows: 52px minmax(0, 1fr) 256px;
   grid-template-areas:
     "top top"
-    "map side";
+    "map side"
+    "profile side";
   background: var(--bg);
 }
 
@@ -801,6 +803,68 @@ abbr {
   color: var(--text);
 }
 
+/* ---- Profile ------------------------------------------------------------- */
+
+.deck-profile {
+  grid-area: profile;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--rule);
+  background: var(--pane);
+}
+
+.profile {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.profile-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+}
+
+.deck .profile-canvas {
+  touch-action: none;
+}
+
+/* The grip for the altitude floor. */
+.floor-handle {
+  position: absolute;
+  right: 12px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: var(--pane-2);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--text-2);
+  white-space: nowrap;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+  transform: translateY(-110%);
+}
+
+.floor-handle.is-set {
+  background: var(--amber);
+  box-shadow: none;
+  color: #1a1200;
+  transform: translateY(-50%);
+}
+
 /* ---- Right column: traffic and readout ----------------------------------- */
 
 .deck-side {
@@ -1126,10 +1190,11 @@ abbr {
 @media (max-width: 860px) {
   .deck {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto 55vh minmax(0, 1fr);
+    grid-template-rows: auto 46vh 210px minmax(0, 1fr);
     grid-template-areas:
       "top"
       "map"
+      "profile"
       "side";
   }
 
