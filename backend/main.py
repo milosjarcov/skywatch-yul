@@ -1,4 +1,4 @@
-"""ADS-B Tracker API.
+"""SkyWatch YUL API.
 
 One job: fetch live aircraft state vectors from the OpenSky Network for the
 Montreal area and serve them to the frontend as clean JSON.
@@ -38,16 +38,22 @@ log = logging.getLogger("uvicorn.error")
 app = FastAPI(title="SkyWatch YUL API")
 
 # The Vite dev server proxies /api to us, but allow direct calls too.
+# The frontend reads the Date header to line its clock up with ours, and
+# browsers hide that header from cross-origin pages unless it's exposed.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["GET"],
     allow_headers=["*"],
+    expose_headers=["Date"],
 )
 
 # Module-level cache. Fine for a single-process app; a multi-worker deployment
 # would move this to Redis, but that's deliberate over-engineering here.
 _cache = {"fetched_at": 0.0, "payload": None}
+
+# Running totals for /api/health, so you can watch the cache do its job.
+_stats = {"requests": 0, "opensky_calls": 0, "opensky_calls_left": None}
 
 
 def parse_state(state: list) -> dict:
@@ -61,6 +67,10 @@ def parse_state(state: list) -> dict:
         "icao24": state[0],
         "callsign": (state[1] or "").strip() or None,
         "country": state[2],
+        # Unix time of the plane's last position report. It can be a few
+        # seconds older than the snapshot; the frontend uses it to keep
+        # moving planes between updates.
+        "position_time": state[3],
         "lon": state[5],
         "lat": state[6],
         # Prefer barometric altitude, fall back to geometric; either can be null.
@@ -73,7 +83,12 @@ def parse_state(state: list) -> dict:
 
 
 def fetch_from_opensky() -> dict:
+    _stats["opensky_calls"] += 1
     resp = requests.get(OPENSKY_URL, params=MONTREAL_BBOX, timeout=15)
+    # Every OpenSky response says how much of today's budget is left.
+    remaining = resp.headers.get("X-Rate-Limit-Remaining", "")
+    if remaining.isdigit():
+        _stats["opensky_calls_left"] = int(remaining)
     resp.raise_for_status()
     raw = resp.json()
     # OpenSky sends null (not []) when no aircraft match, hence the `or []`.
@@ -90,6 +105,7 @@ def fetch_from_opensky() -> dict:
 
 @app.get("/api/flights")
 def get_flights():
+    _stats["requests"] += 1
     now = time.time()
     cache_age = now - _cache["fetched_at"]
 
@@ -112,4 +128,13 @@ def get_flights():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "cache_age_s": round(time.time() - _cache["fetched_at"], 1)}
+    payload = _cache["payload"]
+    return {
+        "status": "ok",
+        # How old the snapshot we're serving is, by OpenSky's clock.
+        "snapshot_age_s": round(time.time() - payload["fetched_at"], 1) if payload else None,
+        "requests_served": _stats["requests"],
+        "opensky_calls": _stats["opensky_calls"],
+        # None until the first OpenSky call. OpenSky resets it daily.
+        "opensky_calls_left": _stats["opensky_calls_left"],
+    }
