@@ -2,17 +2,21 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useSearchParams } from "react-router-dom";
 import { FrameIcon, MinusIcon, PlusIcon } from "../components/Icons";
 import Readout from "../components/Readout";
+import ReplayBar, { formatAgo } from "../components/ReplayBar";
 import Search from "../components/Search";
 import SideView from "../components/SideView";
 import TopBar from "../components/TopBar";
 import TrafficList from "../components/TrafficList";
 import { useFlights } from "../hooks/useFlights";
 import { altitudeFeet, byCallsign, formatNumber, matchesSearch } from "../lib/flights";
+import { positionFromHistory } from "../lib/replay";
 
 // The map engines (Leaflet and MapLibre) are most of this page's JavaScript.
 // Loading them as their own file lets the panels appear and the first data
 // request start while they're still downloading.
 const FlightMap = lazy(() => import("../components/FlightMap"));
+
+const REPLAY_SPEED = 10; // replay plays back at ten times real time
 
 // The tracker, laid out like an instrument panel: a top bar, the map with
 // the vertical profile directly under it (so the two line up), and a column
@@ -32,9 +36,57 @@ export default function MapPage() {
   const searchRef = useRef(null);
   const focusedLinkedFlight = useRef(false);
 
-  // Where each plane is right now, for the map and the profile: the live
-  // motion model.
-  const tracker = useMemo(() => ({ positionAt: (id, now) => feed.motion.positionAt(id, now) }), [feed.motion]);
+  // ---- Replay -------------------------------------------------------------
+  // null means live. Otherwise it's the moment being shown, in server-clock
+  // seconds. The ref is what the animation loops read every frame; the
+  // state only drives the controls, so playback doesn't re-render the whole
+  // page sixty times a second.
+  const replayRef = useRef(null);
+  const [replayAt, setReplayAt] = useState(null);
+  const [playing, setPlaying] = useState(false);
+  const seek = useCallback((time) => {
+    replayRef.current = time;
+    setReplayAt(time);
+  }, []);
+  const goLive = useCallback(() => {
+    replayRef.current = null;
+    setReplayAt(null);
+    setPlaying(false);
+  }, []);
+
+  useEffect(() => {
+    if (!playing) return;
+    let frame = 0;
+    let last = performance.now();
+    let lastRender = 0;
+    function tick(now) {
+      frame = requestAnimationFrame(tick);
+      replayRef.current += ((now - last) / 1000) * REPLAY_SPEED;
+      last = now;
+      if (replayRef.current >= (Date.now() + feed.clockOffset) / 1000) {
+        goLive();
+        return;
+      }
+      if (now - lastRender > 150) {
+        lastRender = now;
+        setReplayAt(replayRef.current);
+      }
+    }
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, feed.clockOffset, goLive]);
+
+  // One answer to "where is this plane?" for the map and the profile: the
+  // live motion model, or the recorded history during replay.
+  const tracker = useMemo(
+    () => ({
+      positionAt(id, now) {
+        const at = replayRef.current;
+        return at == null ? feed.motion.positionAt(id, now) : positionFromHistory(feed.history.get(id), at);
+      },
+    }),
+    [feed.motion, feed.history],
+  );
 
   // ---- Which planes to show -----------------------------------------------
   // Search and the ground switch decide which planes are on screen at all.
@@ -99,7 +151,8 @@ export default function MapPage() {
     mapRef.current.focus(liveSelected, false);
   }, [mapReady, liveSelected]);
 
-  // Keyboard: "/" jumps to search; Escape closes the selected plane.
+  // Keyboard: "/" jumps to search; Escape leaves replay, then closes the
+  // selected plane.
   useEffect(() => {
     function onKey(e) {
       // Typing in a text box shouldn't trigger shortcuts; a focused slider
@@ -109,15 +162,21 @@ export default function MapPage() {
       if (e.key === "/" && !typing) {
         e.preventDefault();
         searchRef.current?.focus();
-      } else if (e.key === "Escape" && !typing && selectedId) close();
+      } else if (e.key === "Escape" && !typing) {
+        if (replayRef.current != null) goLive();
+        else if (selectedId) close();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [close, selectedId]);
+  }, [close, goLive, selectedId]);
+
+  const replaying = replayAt != null;
+  const replayLabel = replaying ? formatAgo((Date.now() + feed.clockOffset) / 1000 - replayAt) : null;
 
   return (
-    <div className="deck">
-      <TopBar feed={feed}>
+    <div className={replaying ? "deck is-replaying" : "deck"}>
+      <TopBar feed={feed} replayLabel={replayLabel} onExitReplay={goLive}>
         <Search
           flights={feed.flights}
           query={query}
@@ -137,6 +196,7 @@ export default function MapPage() {
             ref={mapRef}
             flights={mapFlights}
             tracker={tracker}
+            replaying={replaying}
             clockOffset={feed.clockOffset}
             selectedId={selectedId}
             hoveredId={hoveredId}
@@ -167,6 +227,7 @@ export default function MapPage() {
           flights={profileFlights}
           tracker={tracker}
           clockOffset={feed.clockOffset}
+          replaying={replaying}
           projectX={projectX}
           selectedId={selectedId}
           hoveredId={hoveredId}
@@ -177,6 +238,21 @@ export default function MapPage() {
           onMinFeetChange={setMinFeet}
           showGround={showGround}
           onShowGroundChange={setShowGround}
+        />
+        <ReplayBar
+          recordingSince={feed.recordingSince}
+          clockOffset={feed.clockOffset}
+          replayAt={replayAt}
+          playing={playing}
+          onSeek={(time) => {
+            setPlaying(false);
+            seek(time);
+          }}
+          onPlay={(play, from) => {
+            if (play) seek(from);
+            setPlaying(play);
+          }}
+          onLive={goLive}
         />
       </div>
 

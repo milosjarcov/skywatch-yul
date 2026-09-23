@@ -7,7 +7,7 @@ import { Motion } from "../lib/motion";
 export const REFRESH_MS = 15000;
 
 // How far back to remember each plane's reports, for the selected plane's
-// trail and its altitude chart.
+// trail, its altitude chart, and the replay.
 export const HISTORY_SECONDS = 10 * 60;
 
 // Remembers where each plane has been since the page opened, as
@@ -43,6 +43,7 @@ export function useFlights() {
     loading: true,
     polledAt: 0, // when we last asked, by this browser's clock
     clockOffset: 0, // server clock minus browser clock, in ms
+    recordingSince: null, // snapshot time of the first answer; replay can't go further back
   });
   const history = useRef(new Map());
   // One motion model per page, shared by everything that draws planes, so
@@ -68,14 +69,15 @@ export function useFlights() {
         const clockOffset = Number.isNaN(serverDate) ? 0 : serverDate - Date.now();
         recordPositions(history.current, data.flights, data.fetched_at);
         motion.current.update(data.flights, data.fetched_at, Date.now() + clockOffset);
-        setFeed({
+        setFeed((old) => ({
           flights: data.flights,
           fetchedAt: data.fetched_at,
           error: null,
           loading: false,
           polledAt: lastPoll,
           clockOffset,
-        });
+          recordingSince: old.recordingSince ?? data.fetched_at,
+        }));
       } catch (err) {
         if (err.name === "AbortError") return;
         setFeed((old) => ({ ...old, error: err.message, loading: false, polledAt: lastPoll }));

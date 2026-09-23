@@ -803,7 +803,7 @@ abbr {
   color: var(--text);
 }
 
-/* ---- Profile ------------------------------------------------------------- */
+/* ---- Profile and replay -------------------------------------------------- */
 
 .deck-profile {
   grid-area: profile;
@@ -863,6 +863,107 @@ abbr {
   box-shadow: none;
   color: #1a1200;
   transform: translateY(-50%);
+}
+
+.replay {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding: 0 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.replay-play {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--pane-3);
+  color: var(--text);
+}
+
+.replay-play svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.replay-slider {
+  flex: 1;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  --track: linear-gradient(90deg, rgba(255, 255, 255, 0.35) var(--fill), var(--pane-3) var(--fill));
+}
+
+.replay.is-active .replay-slider {
+  --track: linear-gradient(90deg, var(--amber) var(--fill), var(--pane-3) var(--fill));
+}
+
+.replay-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--track);
+}
+
+.replay-slider::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--track);
+}
+
+.replay-slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4.5px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.replay-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+.replay-slider:disabled {
+  opacity: 0.4;
+}
+
+.replay-label {
+  min-width: 150px;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.replay.is-active .replay-label {
+  color: var(--amber);
+}
+
+.replay-live {
+  padding: 3px 9px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+
+.replay-live.is-live {
+  color: var(--green);
+  box-shadow: inset 0 0 0 1px rgba(61, 220, 132, 0.45);
 }
 
 /* ---- Right column: traffic and readout ----------------------------------- */
@@ -1229,6 +1330,11 @@ abbr {
 
   .pane-head p {
     display: none;
+  }
+
+  .replay-label {
+    min-width: 0;
+    white-space: nowrap;
   }
 }
 
